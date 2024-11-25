@@ -2158,12 +2158,54 @@ LogicalResult spirv::Deserializer::wireUpBlockArgument() {
   return success();
 }
 
+LogicalResult spirv::Deserializer::splitConditionalBlocks() {
+  auto splitBlock = [&](Block *block) {
+    // Do not split loop headers
+    if (auto it = blockMergeInfo.find(block); it != blockMergeInfo.end()) {
+      if (it->second.continueBlock) {
+        return;
+      }
+    }
+
+    if (!block->mightHaveTerminator())
+      return;
+
+    auto terminator = block->getTerminator();
+    assert(terminator != nullptr);
+
+    if (isa<spirv::BranchConditionalOp>(terminator) &&
+        std::distance(block->begin(), block->end()) > 1) {
+      auto newBlock = block->splitBlock(terminator);
+      OpBuilder builder(block, block->end());
+      builder.create<spirv::BranchOp>(block->getParent()->getLoc(), newBlock);
+
+      if (auto it = blockMergeInfo.find(block); it != blockMergeInfo.end()) {
+        auto value = std::move(it->second);
+        blockMergeInfo.erase(it);
+        blockMergeInfo.try_emplace(newBlock, std::move(value));
+      }
+    }
+  };
+  curFunction->walk(splitBlock);
+
+  return success();
+}
+
 LogicalResult spirv::Deserializer::structurizeControlFlow() {
   LLVM_DEBUG({
     logger.startLine()
         << "//----- [cf] start structurizing control flow -----//\n";
     logger.indent();
   });
+
+  LLVM_DEBUG({
+    logger.startLine() << "[cf] split conditional blocks\n";
+    logger.startLine() << "\n";
+  });
+
+  if (failed(splitConditionalBlocks())) {
+    return failure();
+  }
 
   while (!blockMergeInfo.empty()) {
     Block *headerBlock = blockMergeInfo.begin()->first;

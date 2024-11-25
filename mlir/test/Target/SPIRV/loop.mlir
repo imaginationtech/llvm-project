@@ -267,6 +267,8 @@ spirv.module Physical64 OpenCL requires #spirv.vce<v1.0, [Kernel, Linkage, Addre
       }
 // CHECK-NEXT:       %[[LOAD:.+]] = spirv.Load "Function" %[[VAR]] : i1
       %load = spirv.Load "Function" %var : i1
+// CHECK-NEXT:       spirv.Branch ^[[BB:.+]]
+// CHECK-NEXT:     ^[[BB]]
 // CHECK-NEXT:       spirv.BranchConditional %[[LOAD]], ^[[CONTINUE:.+]](%[[ARG1]] : i64), ^[[LOOP_MERGE:.+]]
       spirv.BranchConditional %load, ^continue(%arg1 : i64), ^loop_merge
 // CHECK-NEXT:     ^[[CONTINUE]](%[[ARG2:.+]]: i64):
